@@ -24,9 +24,9 @@ PrintBlock("Step 1: patching Mongo config file to allow replication set rs0");
 await PatchMongoConfigFile();
 
 PrintBlock("Step 2: Attempting to stop any running mongod processes, this may fail if none are running");
-await RunCommand("mongosh", """--eval "use admin;" """);
+await RunCommand("mongosh", """--eval "use admin;" """, quiet: true);
 await Task.Delay(TimeSpan.FromSeconds(1));
-await RunCommand("mongosh", """--eval "db.shutdownServer();" """);
+await RunCommand("mongosh", """--eval "db.shutdownServer();" """, quiet: true);
 await Task.Delay(TimeSpan.FromSeconds(2));
 
 PrintBlock($"Step 3: ensuring data directory {DataDir}");
@@ -54,7 +54,7 @@ async ValueTask InitReplicationSet()
     async ValueTask<bool> AlreadyConfigured() 
     {
         const string ReplicationSetIndicator = $"set: '{ReplicationSetName}'";
-        var (success, outStr) = await RunCommand("mongosh", """--eval "rs.status();" """);
+        var (success, outStr) = await RunCommand("mongosh", """--eval "rs.status();" """, quiet: true);
         return success && outStr.Any(l => l.Contains(ReplicationSetIndicator));
     }
 
@@ -102,7 +102,7 @@ async ValueTask PatchMongoConfigFile()
     await File.WriteAllTextAsync(ConfigFilePath, allText);
 }
 
-async ValueTask<CmdResult> RunCommand(string cmd, string args)
+async ValueTask<CmdResult> RunCommand(string cmd, string args, bool quiet = false)
 {
     var outSink = new StringBuilder();
     var error = false;
@@ -113,7 +113,7 @@ async ValueTask<CmdResult> RunCommand(string cmd, string args)
             .WithStandardOutputPipe(PipeTarget.ToStringBuilder(outSink))
             .WithStandardErrorPipe(PipeTarget.ToStringBuilder(outSink))
             .WithValidation(CommandResultValidation.ZeroExitCode)
-            .ExecuteAsync();        
+            .ExecuteAsync();
     }
     catch (Exception ex)
     {
@@ -122,7 +122,10 @@ async ValueTask<CmdResult> RunCommand(string cmd, string args)
     }
 
     var outLines = outSink.ToString().Split(Environment.NewLine);
-    Console.WriteLine(string.Join(Environment.NewLine, outLines.Select(l => $"  > {l}")));
+    if (!quiet || !error)
+    {
+        Console.WriteLine(string.Join(Environment.NewLine, outLines.Select(l => $"  > {l}")));
+    }
 
     return new (!error, outLines);
 }
