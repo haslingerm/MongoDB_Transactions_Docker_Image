@@ -1,7 +1,7 @@
-FROM mongo:6.0.3-focal AS base
+FROM mongo:8.2 AS base
 EXPOSE 27017
 
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 RUN apt update && apt install -y clang zlib1g-dev 
 COPY ["MongoControl/MongoControl.csproj", "MongoControl/"]
