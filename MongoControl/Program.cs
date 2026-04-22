@@ -43,9 +43,9 @@ await InitReplicationSet();
 
 PrintBlock("Done, DB should now accept connections and allow transactions");
 
-while (true)
+using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+while (await timer.WaitForNextTickAsync())
 {
-    await Task.Delay(TimeSpan.FromMinutes(1));
     Console.WriteLine($"Still here {DateTime.Now}");
 }
 
@@ -61,17 +61,16 @@ async ValueTask InitReplicationSet()
     async ValueTask PerformSetup()
     {
         const int MaxAttempts = 4;
-        var attemptCnt = 0;
-        var done = false;
-        do {
-            (done, _) = await RunCommand("mongosh", """--eval "rs.initiate();" """);
-            attemptCnt++;
-
-            if (!done && attemptCnt <= MaxAttempts){
-                Console.WriteLine($"Retry {attemptCnt}/{MaxAttempts}...");
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            var (done, _) = await RunCommand("mongosh", """--eval "rs.initiate();" """);
+            if (done) return;
+            if (attempt < MaxAttempts)
+            {
+                Console.WriteLine($"Retry {attempt}/{MaxAttempts}...");
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
-        } while (!done && attemptCnt < MaxAttempts);
+        }
     }
 
     if (!(await AlreadyConfigured()))
@@ -123,8 +122,7 @@ async ValueTask<CmdResult> RunCommand(string cmd, string args)
     }
 
     var outLines = outSink.ToString().Split(Environment.NewLine);
-    Console.WriteLine(string.Join(Environment.NewLine, 
-    outLines.Select(l => $"{new string(' ', 2)}> {l}")));
+    Console.WriteLine(string.Join(Environment.NewLine, outLines.Select(l => $"  > {l}")));
 
     return new (!error, outLines);
 }
